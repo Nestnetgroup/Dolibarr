@@ -379,7 +379,9 @@ class Paiement extends CommonObject
 							$creditnotes = $invoice->getSumCreditNotesUsed();
 							$deposits = $invoice->getSumDepositsUsed();
 							$alreadypayed = price2num($paiement + $creditnotes + $deposits, 'MT');
-							$remaintopay = price2num($invoice->total_ttc - $paiement - $creditnotes - $deposits, 'MT');
+							$remaintopay = price2num($invoice->total_ttc - $paiement - $creditnotes - $deposits-$invoice->multicurrency_total_impuestos, 'MT');
+
+							//$total_impuestos=$invoice->multicurrency_total_impuestos;
 
 							//var_dump($invoice->total_ttc.' - '.$paiement.' -'.$creditnotes.' - '.$deposits.' - '.$remaintopay);exit;
 
@@ -471,6 +473,7 @@ class Paiement extends CommonObject
 									}
 								}
 							}
+							
 						}
 
 						// Regenerate documents of invoices

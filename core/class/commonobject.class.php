@@ -3876,6 +3876,9 @@ abstract class CommonObject
 			}
 
 			if (!$error && empty($nodatabaseupdate)) {
+
+
+
 				$sql = "UPDATE ".$this->db->prefix().$this->table_element.' SET';
 				$sql .= " ".$fieldht." = ".((float) price2num($this->total_ht, 'MT', 1)).",";
 				$sql .= " ".$fieldtva." = ".((float) price2num($this->total_tva, 'MT', 1)).",";
@@ -3885,9 +3888,61 @@ abstract class CommonObject
 				$sql .= ", multicurrency_total_ht = ".((float) price2num($this->multicurrency_total_ht, 'MT', 1));
 				$sql .= ", multicurrency_total_tva = ".((float) price2num($this->multicurrency_total_tva, 'MT', 1));
 				$sql .= ", multicurrency_total_ttc = ".((float) price2num($this->multicurrency_total_ttc, 'MT', 1));
-				$sql .= " WHERE rowid = ".((int) $this->id);
+				
+
+				$sqli ="SELECT fi.rowid,so.libelle,fi.porcentaje,bi.campo_facture,fi.importe"; 
+				$sqli .= " FROM llx_facture_impuesto AS fi"; 
+				$sqli .= " INNER JOIN llx_c_chargesociales AS so ON fi.fk_chargesociales=so.id"; 
+				$sqli .= " INNER JOIN llx_facture AS fa ON fi.fk_facture=fa.rowid";
+				$sqli .= " LEFT JOIN llx_base_importe AS bi ON so.base_importe=bi.rowid";
+				$sqli .= " WHERE fa.rowid=".((int) $this->id);
+
+				$total_impuestos=0;
+
+
+
+				$resql2 =$this->db->query($sqli);
+				if ($resql2) {
+					$num2 = $this->db->num_rows($resqli);
+                    if($num2 > 0){
+						$k=0;
+
+						while ($k < $num2) {
+
+							$obj2 = $this->db->fetch_object($resql2);
+
+							
+							$campo = $obj2->campo_facture;
+				            $value=$this->$campo;
+                            $importe=($value)*($obj2->porcentaje/100);
+
+							$total_impuestos=$total_impuestos+$importe;
+
+							$sqlu="UPDATE llx_facture_impuesto SET importe=".((float) price2num($importe, 'MT', 1))." WHERE rowid=".$obj2->rowid;
+							$resql3 = $this->db->query($sqlu);
+
+							if (!$resql3) {
+								$error++;
+								$this->error = $this->db->lasterror();
+								$this->errors[] = $this->db->lasterror();
+							}
+							                     
+							$k++;
+						}
+					}
+				}else{
+                    $error++;
+					$this->error = $this->db->lasterror();
+					$this->errors[] = $this->db->lasterror();
+
+				}
+
 
 				dol_syslog(get_class($this)."::update_price", LOG_DEBUG);
+
+				$sql .= ", multicurrency_total_impuestos = ".((float) price2num($total_impuestos, 'MT', 1));
+				$sql .= " WHERE rowid = ".((int) $this->id);
+
 				$resql = $this->db->query($sql);
 
 				if (!$resql) {

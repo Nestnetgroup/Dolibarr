@@ -119,7 +119,7 @@ if (!GETPOSTISSET('date_startmonth') && (empty($date_start) || empty($date_end))
 
 $sql = "SELECT f.rowid, f.ref, f.type, f.situation_cycle_ref, f.datef as df, f.ref_client, f.date_lim_reglement as dlr, f.close_code, f.retained_warranty, f.revenuestamp,";
 $sql .= " fd.rowid as fdid, fd.description, fd.product_type, fd.total_ht, fd.total_tva, fd.total_localtax1, fd.total_localtax2, fd.tva_tx, fd.total_ttc, fd.situation_percent, fd.vat_src_code, fd.info_bits,";
-$sql .= " s.rowid as socid, s.nom as name, s.code_client, s.code_fournisseur,";
+$sql .= " s.rowid as socid, s.nom as name, s.code_client, s.code_fournisseur, f.multicurrency_total_impuestos,";
 if (getDolGlobalString('MAIN_COMPANY_PERENTITY_SHARED')) {
 	$sql .= " spe.accountancy_code_customer as code_compta,";
 	$sql .= " spe.accountancy_code_supplier as code_compta_fournisseur,";
@@ -195,6 +195,9 @@ if ($result) {
 	$tablocaltax2 = array();
 	$tabcompany = array();
 	$vatdata_cache = array();
+	$tabImpuestos = array();
+
+	
 
 	$num = $db->num_rows($result);
 
@@ -203,6 +206,8 @@ if ($result) {
 	$cpttva = getDolGlobalString('ACCOUNTING_VAT_SOLD_ACCOUNT', 'NotDefined');
 
 	$i = 0;
+
+	
 	while ($i < $num) {
 		$obj = $db->fetch_object($result);
 
@@ -265,7 +270,32 @@ if ($result) {
 		$tabfac[$obj->rowid]["description"] = $obj->label_compte;
 		$tabfac[$obj->rowid]["close_code"] = $obj->close_code; // close_code = 'replaced' for replacement invoices (not used in most european countries)
 		$tabfac[$obj->rowid]["revenuestamp"] = $revenuestamp;
+		$tabfac[$obj->rowid]["total_impuestos"] = $obj->multicurrency_total_impuestos; 
 		//$tabfac[$obj->rowid]["fk_facturedet"] = $obj->fdid;
+
+
+   //Impuestos sugeridos
+		$sqli="SELECT fi.rowid,so.libelle,fi.porcentaje,fi.importe,so.accountancy_code"; 
+		$sqli .=" FROM llx_facture_impuesto AS fi"; 
+		$sqli .=" INNER JOIN llx_c_chargesociales AS so ON fi.fk_chargesociales=so.id"; 
+		$sqli .=" INNER JOIN llx_facture AS fa ON fi.fk_facture=fa.rowid"; 
+		$sqli .=" WHERE fa.rowid=".$obj->rowid;
+
+			$resulti = $db->query($sqli);
+			if ($resulti) {
+				$numi = $db->num_rows($resulti);
+				if($numi > 0){
+					$j = 0;
+						while ($j < $numi) {
+							$obj2 = $db->fetch_object($resql);
+                            
+							$tabImpuestos[$obj->rowid][$j]["accountancy_code"] = $obj2->accountancy_code;
+							$tabImpuestos[$obj->rowid][$j]["libelle"] = $obj2->libelle;
+							$tabImpuestos[$obj->rowid][$j]["importe"] = $obj2->importe;					
+							$j++;
+						}
+				}
+			}	
 
 		// Avoid warnings
 		if (!isset($tabttc[$obj->rowid][$compta_soc])) {
@@ -289,10 +319,13 @@ if ($result) {
 		// real data we should have stored and result obtained with a compensation.
 		// It also seems that credit notes on situation invoices are correctly saved (but it depends on the version used in fact).
 		// For credit notes, we hope to have situation_ratio = 1 so the compensation has no effect to avoid introducing troubles with credit notes.
+
+	
 		if (getDolGlobalInt('INVOICE_USE_SITUATION') == 1) {
+
 			$total_ttc = $obj->total_ttc * $situation_ratio;
 		} else {
-			$total_ttc = $obj->total_ttc;
+			$total_ttc = $obj->total_ttc;		
 		}
 
 		// Move a part of the retained warrenty into the account of warranty
@@ -348,6 +381,18 @@ if ($result) {
 		$i++;
 	}
 
+	foreach ($tabttc as $k => $mt) {
+		foreach ($mt as $cu => $val) {
+
+			$tabttc[$k][$cu]=$val-$tabfac[$k]["total_impuestos"];
+		}
+	}
+
+
+
+
+	
+
 	// After the loop on each line
 } else {
 	dol_print_error($db);
@@ -382,19 +427,9 @@ foreach ($tabfac as $key => $val) {		// Loop on each invoice
 */
 // New way, single query, load all unbound lines
 
-$sql = "
-SELECT
-    fk_facture,
-    COUNT(fd.rowid) as nb
-FROM
-	".MAIN_DB_PREFIX."facturedet as fd
-WHERE
-    fd.product_type <= 2
-    AND fd.fk_code_ventilation <= 0
-    AND fd.total_ttc <> 0
-	AND fk_facture IN (".$db->sanitize(join(",", array_keys($tabfac))).")
-GROUP BY fk_facture
-";
+$sql = "SELECT fk_facture,COUNT(fd.rowid) as nb FROM ".MAIN_DB_PREFIX."facturedet as fd";
+$sql .=" WHERE fd.product_type <= 2 AND fd.fk_code_ventilation <= 0 AND fd.total_ttc <> 0 AND fk_facture IN (".$db->sanitize(join(",", array_keys($tabfac))).")";
+$sql .=" GROUP BY fk_facture";
 $resql = $db->query($sql);
 
 $num = $db->num_rows($resql);
@@ -423,7 +458,8 @@ if ($action == 'writebookkeeping' && !$error) {
 
 	$accountingaccountcustomerwarranty->fetch(null, getDolGlobalString('ACCOUNTING_ACCOUNT_CUSTOMER_RETAINED_WARRANTY'), true);
 
-	foreach ($tabfac as $key => $val) {		// Loop on each invoice
+	foreach ($tabfac as $key => $val)
+	{		// Loop on each invoice
 		$errorforline = 0;
 
 		$totalcredit = 0;
@@ -709,6 +745,68 @@ if ($action == 'writebookkeeping' && !$error) {
 				}
 			}
 		}
+
+
+
+		// Impuestos
+		if (!$errorforline) {
+			foreach ($tabImpuestos[$key] as $k => $mt) {
+
+				//$sqli="SELECT fi.rowid,so.libelle,fi.porcentaje,fi.importe,so.accountancy_code"; 
+
+				$bookkeeping = new BookKeeping($db);
+				$bookkeeping->doc_date = $val["date"];
+				$bookkeeping->date_lim_reglement = $val["datereg"];
+				$bookkeeping->doc_ref = $val["ref"];
+				$bookkeeping->date_creation = $now;
+				$bookkeeping->doc_type = 'customer_invoice';
+				$bookkeeping->fk_doc = $key;
+				$bookkeeping->fk_docdet = 0; // Useless, can be several lines that are source of this record to add
+				$bookkeeping->thirdparty_code = $companystatic->code_client;
+
+				$bookkeeping->subledger_account ='';  //$mt["accountancy_code"];
+				$bookkeeping->subledger_label = $tabcompany[$key]['name'];
+
+				$bookkeeping->numero_compte = $mt["accountancy_code"];
+
+
+				$bookkeeping->label_compte = $mt['libelle'];
+
+
+				$bookkeeping->label_operation = dol_trunc($companystatic->name, 16).' - '.$invoicestatic->ref.' - '.$mt['libelle'];
+
+				$bookkeeping->montant = $mt["importe"];
+
+				$bookkeeping->sens = ($mt["importe"] >= 0) ? 'D' : 'C';
+				$bookkeeping->debit = ($mt["importe"] >= 0) ? $mt["importe"] : 0;
+				$bookkeeping->credit = ($mt["importe"] < 0) ? -$mt["importe"] : 0;
+
+				
+				$bookkeeping->code_journal = $journal;
+				$bookkeeping->journal_label = $langs->transnoentities($journal_label);
+				$bookkeeping->fk_user_author = $user->id;
+				$bookkeeping->entity = $conf->entity;
+
+				$totaldebit += $bookkeeping->debit;
+				$totalcredit += $bookkeeping->credit;
+
+				$result = $bookkeeping->create($user);
+				if ($result < 0) {
+					if ($bookkeeping->error == 'BookkeepingRecordAlreadyExists') {	// Already exists
+						$error++;
+						$errorforline++;
+						$errorforinvoice[$key] = 'alreadyjournalized';
+						//setEventMessages('Transaction for ('.$bookkeeping->doc_type.', '.$bookkeeping->fk_doc.', '.$bookkeeping->fk_docdet.') were already recorded', null, 'warnings');
+					} else {
+						$error++;
+						$errorforline++;
+						$errorforinvoice[$key] = 'other';
+						setEventMessages($bookkeeping->error, $bookkeeping->errors, 'errors');
+					}
+				}
+			}
+		}
+
 
 		// Revenue stamp
 		if (!$errorforline) {
@@ -1181,6 +1279,8 @@ if (empty($action) || $action == 'view') {
 			}
 		}
 
+		
+
 		// Third party
 		foreach ($tabttc[$key] as $k => $mt) {
 			print '<tr class="oddeven">';
@@ -1212,6 +1312,8 @@ if (empty($action) || $action == 'view') {
 
 			$i++;
 		}
+
+		
 
 		// Product / Service
 		foreach ($tabht[$key] as $k => $mt) {
@@ -1251,6 +1353,10 @@ if (empty($action) || $action == 'view') {
 			$i++;
 		}
 
+
+		
+
+		
 		// VAT
 		$listoftax = array(0, 1, 2);
 		foreach ($listoftax as $numtax) {
@@ -1296,6 +1402,45 @@ if (empty($action) || $action == 'view') {
 				}
 			}
 		}
+
+		//Impuestos 
+
+		foreach ($tabImpuestos[$key] as $k => $mt) {
+
+		
+
+				print '<tr class="oddeven">';
+				print "<!-- Impuestos -->";
+				print "<td>".$date."</td>";
+				print "<td>".$invoicestatic->getNomUrl(1)."</td>";
+
+				print "<td>"; 
+				print $mt["accountancy_code"];
+				print "</td>";
+
+				print "<td>";
+				
+				print '</td>';
+				$companystatic->id = $tabcompany[$key]['id'];
+				$companystatic->name = $tabcompany[$key]['name'];
+				print "<td>".$companystatic->getNomUrl(0, 'customer', 16).' - '.$invoicestatic->ref.' - '.$mt["libelle"]."</td>";
+				print '<td class="right nowraponall amount">'.($mt["importe"] >= 0 ? price($mt["importe"]) : '')."</td>";
+			    print '<td class="right nowraponall amount">'.($mt["importe"] < 0 ? price(-$mt["importe"]) : '')."</td>";	
+				print "</tr>";
+		
+		}
+
+
+
+		
+		
+
+
+
+
+
+
+
 
 		// Revenue stamp
 		if (is_array($tabrevenuestamp[$key])) {

@@ -53,6 +53,8 @@ require_once DOL_DOCUMENT_ROOT.'/core/lib/invoice.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/date.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
+require_once DOL_DOCUMENT_ROOT.'/core/class/Impuestos.class.php';
+
 
 if (isModEnabled('commande')) {
 	require_once DOL_DOCUMENT_ROOT.'/commande/class/commande.class.php';
@@ -107,16 +109,25 @@ $hidedetails = (GETPOST('hidedetails', 'int') ? GETPOST('hidedetails', 'int') : 
 $hidedesc = (GETPOST('hidedesc', 'int') ? GETPOST('hidedesc', 'int') : (getDolGlobalString('MAIN_GENERATE_DOCUMENTS_HIDE_DESC') ? 1 : 0));
 $hideref = (GETPOST('hideref', 'int') ? GETPOST('hideref', 'int') : (getDolGlobalString('MAIN_GENERATE_DOCUMENTS_HIDE_REF') ? 1 : 0));
 
+$actlpor[0] = img_picto($langs->trans("Disabledpor"), 'switch_off', 'class="size15x"');
+$actlpor[1] = img_picto($langs->trans("Activatedpor"), 'switch_on', 'class="size15x"');
+
+$actspor[0] = "activatepor";
+$actspor[1] = "disablepor";
+
 // Number of lines for predefined product/service choices
 $NBLINES = 4;
 
 $usehm = (getDolGlobalString('MAIN_USE_HOURMIN_IN_DATE_RANGE') ? $conf->global->MAIN_USE_HOURMIN_IN_DATE_RANGE : 0);
 
 $object = new Facture($db);
+$imp=new Impuestos($db);
 $extrafields = new ExtraFields($db);
 
 // Fetch optionals attributes and labels
 $extrafields->fetch_name_optionals_label($object->table_element);
+
+global $conf, $db, $langs, $user, $mysoc;
 
 // Load object
 if ($id > 0 || !empty($ref)) {
@@ -132,6 +143,14 @@ if ($id > 0 || !empty($ref)) {
 		}
 	}
 }
+
+/*
+foreach($_POST as $nombre_campo => $valor){
+	$asignacion = "\$" . $nombre_campo . "='" . $valor . "';";
+
+	echo  $asignacion.'</br>';
+
+ }*/
 
 // Initialize technical object to manage hooks of page. Note that conf->hooks_modules contains array of hook context
 $hookmanager->initHooks(array('invoicecard', 'globalcard'));
@@ -216,6 +235,21 @@ if (empty($reshook)) {
 	include DOL_DOCUMENT_ROOT.'/core/actions_dellink.inc.php'; // Must be include, not include_once
 
 	include DOL_DOCUMENT_ROOT.'/core/actions_lineupdown.inc.php'; // Must be include, not include_once
+
+
+
+	if($action == 'deleteimpuesto') {
+		$imp->deleteImpuestosFacture(GETPOST('imid'),GETPOST('facid'));
+	}
+
+	if($action == 'actualizarimpuestos'&& GETPOST('idfactura') && GETPOST('row') && GETPOST('porimpuestoadd')) {
+		$imp->updateImpuestosFacture(GETPOST('row'),GETPOST('porimpuestoadd'),GETPOST('idfactura'),GETPOST('impid'));
+	}
+
+	if($action=='changeaddimpuesto' && GETPOST('porimpuestoadd') )
+	{
+		$imp->addImpuestosFacture(GETPOST('impuestoadd'),GETPOST('idfactura'),GETPOST('porimpuestoadd'),GETPOST('porimpuestoadd'),GETPOST('iduser'));
+	}
 
 	// Action clone object
 	if ($action == 'confirm_clone' && $confirm == 'yes' && $permissiontoadd) {
@@ -1139,6 +1173,8 @@ if (empty($reshook)) {
 
 
 				$id = $object->create($user);
+
+
 				if ($id < 0) {
 					$error++;
 				} else {
@@ -1865,8 +1901,23 @@ if (empty($reshook)) {
 						setEventMessages($object->error, $object->errors, 'errors');
 						$error++;
 					}
-				} else {   // If some invoice's lines coming from page
+				} else {  
+					 // If some invoice's lines coming from page
 					$id = $object->create($user);
+                     
+					if($id > 0){
+
+						foreach($_POST['impuestos'] as $key=> $campo) {
+							if($_POST['valorimpuestos'][$key] != "0"){
+								$sql="INSERT INTO llx_facture_impuesto(fk_chargesociales,fk_facture,porcentaje,fk_user_author) VALUES(".$campo.",".$id.",".$_POST['valorimpuestos'][$key].",".$user->id.")";
+
+								$result = $db->query($sql);
+								if (!$result) {
+									dol_print_error($db);
+								}
+							}
+						}
+					}
 
 					for ($i = 1; $i <= $NBLINES; $i++) {
 						if (GETPOST('idprod'.$i, 'int')) {
@@ -3070,6 +3121,8 @@ $help_url = "EN:Customers_Invoices|FR:Factures_Clients|ES:Facturas_a_clientes";
 
 llxHeader('', $title, $help_url);
 
+
+
 // Mode creation
 
 if ($action == 'create') {
@@ -3293,6 +3346,8 @@ if ($action == 'create') {
 	// Note that $action and $object may be modified by hook
 	$reshook = $hookmanager->executeHooks('tabContentCreateInvoice', $parameters, $object, $action);
 	if (empty($reshook)) {
+
+	
 		print '<table class="border centpercent">';
 
 		// Ref
@@ -3455,6 +3510,8 @@ if ($action == 'create') {
 			print '</td>';
 		}
 		print '</tr></table>';
+
+
 		print '</div></div>';
 
 		if ((empty($origin)) || ((($origin == 'propal') || ($origin == 'commande')) && (!empty($originid)))) {
@@ -3522,7 +3579,6 @@ if ($action == 'create') {
 					print '</td>';
 				}
 				print '</tr></table>';
-
 				print '</div></div>';
 			}
 		}
@@ -4069,8 +4125,125 @@ if ($action == 'create') {
 		}
 
 		print "</table>\n";
+
+		
+
+
+		///print '<h1> esto es aqui </h1>';
 	}
+
+   
+
 	print dol_get_fiche_end();
+
+	//$formsocialcontrib = new FormSocialContrib($db);
+
+
+	
+
+	if (empty($mysoc->country_id) && empty($mysoc->country_code)) {
+		print $langs->trans("ErrorSetupOfCountryMustBeDone");
+		return;
+	}
+
+	if (!empty($mysoc->country_id)) {
+		$sql = "SELECT c.id, c.libelle as type, code, accountancy_code";
+		$sql .= " FROM llx_c_chargesociales as c";
+		$sql .= " WHERE c.active = 1";
+		$sql .= " AND c.fk_pays = ".((int) $mysoc->country_id);
+		$sql .= " AND (SELECT COUNT(rowid) FROM llx_porcentaje_impuestos WHERE fk_chargesociales=c.id) > 0 ORDER BY c.libelle ASC";
+	} else {
+		$sql = "SELECT c.id, c.libelle as type, code, accountancy_code";
+		$sql .= " FROM  llx_c_chargesociales  as c, llx_c_country as co";
+		$sql .= " WHERE c.active = 1 AND c.fk_pays = co.rowid";
+		$sql .= " AND co.code = '".$db->escape($mysoc->country_code)."'";
+		$sql .= " AND (SELECT COUNT(rowid) FROM llx_porcentaje_impuestos WHERE fk_chargesociales=c.id) > 0 ORDER BY c.libelle ASC";
+	}
+
+
+	$resql = $db->query($sql);
+	if ($resql) {
+		$num = $db->num_rows($resql);
+		if ($num) {
+
+			
+
+
+	$thirdpartygraph = '<div class="div-table-responsive-no-min">';
+	$thirdpartygraph .= '<table class="noborder nohover centpercent">' . "\n";
+	$thirdpartygraph .= '<tr class="liste_titre">';
+	$thirdpartygraph .= '<td colspan="4" class="titre">';
+	$thirdpartygraph .= ' Impuestos sugueridos</td> </tr>';
+
+	$thirdpartygraph .= '<tr class="liste_titre">';
+	$thirdpartygraph .= '<td  class="titre"> Código </td>';
+	$thirdpartygraph .= '<td  class="titre"> Etiqueta </td>';
+	$thirdpartygraph .= '<td  class="titre"> Código contable </td>';
+	//$thirdpartygraph .= '<td  class="titre"> Estado </td>';
+	$thirdpartygraph .= '<td  class="titre"> Tarifa (%) </td>';
+	$thirdpartygraph .= '</tr>';
+
+	$j=0;
+
+	while ($j < $num) {
+		$obj = $db->fetch_object($resql);
+
+	$thirdpartygraph .= '<tr>';
+	$thirdpartygraph .='<td>'.$obj->code;
+	$thirdpartygraph .='</td>';
+
+	$thirdpartygraph .= '<td class="tddict tdoverflowmax200">'.$obj->type;
+	$thirdpartygraph .= '</td">';
+
+	$thirdpartygraph .='<td>'.$obj->accountancy_code;
+	$thirdpartygraph .='</td>';
+
+	//$thirdpartygraph .= '<td >';
+	//$thirdpartygraph .= '<a id="activatepor' . $obj->rowid . '"  class="reposition" href="' . $url . 'action=' . $actspor[0] . '&token=' . newToken() . '&idpor='.$obj->rowid.'">' . $actlpor[0] . '</a>';
+	//$thirdpartygraph .= '</td">';
+	$thirdpartygraph .= '<td>';
+
+	$sql = "SELECT rowid, porcentaje,active FROM llx_porcentaje_impuestos WHERE fk_chargesociales =" . $obj->id." AND active=1 ORDER BY porcentaje ASC";
+
+	$resql2 = $db->query($sql);
+	if ($resql2) {
+
+		$num2 = $db->num_rows($resql2);
+			if ($num2) {
+
+				$thirdpartygraph .= '<input type="hidden" id="idwarehouse" name="impuestos[]" value="'.$obj->id.'">';
+
+				$thirdpartygraph .=  '<select class="'.($morecss ? $morecss : '').'" id="'.$htmlname.'" name="valorimpuestos[]">';
+				$i = 0;
+				$thirdpartygraph .=  '<option value="0">&nbsp;</option>';
+
+				while ($i < $num2) {
+					$obj2 = $db->fetch_object($resql2);
+					$thirdpartygraph .=  '<option value="'.$obj2->porcentaje.'">'.$obj2->porcentaje.' % </option>';
+					$i++;
+				}
+
+				$thirdpartygraph .= '</select>';		
+			}
+	}
+
+	$thirdpartygraph .='</td>';
+	$thirdpartygraph .= '</tr>';
+	$j++;
+
+	}
+	
+
+
+	$thirdpartygraph .= '</table>';
+	$thirdpartygraph .= '</div>';
+	print $thirdpartygraph;
+		
+		} 
+	} else {
+		dol_print_error($db);
+	}
+
 
 	print $form->buttonsSaveCancel("CreateDraft");
 
@@ -4134,7 +4307,7 @@ if ($action == 'create') {
 	// For example print 239.2 - 229.3 - 9.9; does not return 0.
 	// $resteapayer=bcadd($object->total_ttc,$totalpaid,$conf->global->MAIN_MAX_DECIMALS_TOT);
 	// $resteapayer=bcadd($resteapayer,$totalavoir,$conf->global->MAIN_MAX_DECIMALS_TOT);
-	$resteapayer = price2num($object->total_ttc - $totalpaid - $totalcreditnotes - $totaldeposits, 'MT');
+	$resteapayer = price2num($object->total_ttc - $totalpaid - $totalcreditnotes - $totaldeposits-$object->multicurrency_total_impuestos, 'MT');
 
 	// Multicurrency
 	if (isModEnabled('multicurrency')) {
@@ -4177,7 +4350,11 @@ if ($action == 'create') {
 
 	$head = facture_prepare_head($object);
 
+	
 	print dol_get_fiche_head($head, 'compta', $langs->trans('InvoiceCustomer'), -1, 'bill');
+
+	
+
 
 	$formconfirm = '';
 
@@ -4500,6 +4677,7 @@ if ($action == 'create') {
 	// Print form confirm
 	print $formconfirm;
 
+
 	// Invoice content
 
 	$linkback = '<a href="'.DOL_URL_ROOT.'/compta/facture/list.php?restore_lastsearch_values=1'.(!empty($socid) ? '&socid='.$socid : '').'">'.$langs->trans("BackToList").'</a>';
@@ -4540,6 +4718,8 @@ if ($action == 'create') {
 			}
 		}
 	}
+
+	
 	$morehtmlref .= '</div>';
 
 	$object->totalpaid = $totalpaid; // To give a chance to dol_banner_tab to use already paid amount to show correct status
@@ -4929,6 +5109,14 @@ if ($action == 'create') {
 		include DOL_DOCUMENT_ROOT.'/core/tpl/extrafields_view.tpl.php';
 
 		print '</table>';
+
+         print '</br>';     
+			// Margin Infos
+			if (isModEnabled('margin')) {
+				$formmargin->displayMarginInfos($object);
+			}
+	
+
 
 		print '</div>';
 		print '<div class="fichehalfright">';
@@ -5512,15 +5700,225 @@ if ($action == 'create') {
 		print '</table>';
 		print '</div>';
 
-		// Margin Infos
-		if (isModEnabled('margin')) {
-			$formmargin->displayMarginInfos($object);
+		$sql="SELECT fi.rowid,so.libelle,fi.porcentaje,bi.campo_facture,fi.importe,so.id  
+		FROM llx_facture_impuesto AS fi 
+		INNER JOIN llx_c_chargesociales AS so ON fi.fk_chargesociales=so.id 
+		INNER JOIN llx_facture AS fa ON fi.fk_facture=fa.rowid
+        LEFT JOIN llx_base_importe AS bi ON so.base_importe=bi.rowid
+		WHERE fa.rowid=".$id;
+
+
+
+$resql = $db->query($sql);
+	if ($resql) {
+		$num = $db->num_rows($resql);
+
+		$sql2="SELECT DISTINCT id,libelle 
+        FROM llx_c_chargesociales AS ch
+		INNER JOIN llx_porcentaje_impuestos AS por ON ch.id=por.fk_chargesociales
+        WHERE ch.active = 1 AND ch.fk_pays=".((int) $mysoc->country_id)." AND ch.id NOT IN (select fk_chargesociales from llx_facture_impuesto 	where fk_facture=".$id.")  and ch.base_importe is not null and ch.base_importe <> 0";
+        $resql2 = $db->query($sql2);
+		$num2 = $db->num_rows($resql2);
+
+		$thirdpartygraph = '<div class="div-table-responsive-no-min">';
+		$thirdpartygraph .= '<table class="noborder nohover centpercent">' . "\n";
+
+		if($num2 > 0){
+
+			$url=$_SERVER['PHP_SELF'].'?&facid='.$id.'&action=addimpuesto';
+			$thirdpartygraph .= '<tr class="liste_titre">';
+			$thirdpartygraph .= '<td colspan="3" class="titre">';
+			$thirdpartygraph .= ' Impuestos sugueridos</td>';	
+			$thirdpartygraph .= '<td class="right">';
+			if($object->statut != Facture::STATUS_CLOSED && $object->statut != Facture::STATUS_ABANDONED ){
+			$thirdpartygraph .= '<a class="reposition marginleftonly paddingleft marginrightonly paddingright editfielda fa fa-plus-circle" href="' . $url . '&token=' . newToken() . '"></a>';
+			}
+			$thirdpartygraph .= '</td>';
+			$thirdpartygraph .= '</tr>';
+
+		}else{
+
+		$thirdpartygraph .= '<tr class="liste_titre">';
+		$thirdpartygraph .= '<td colspan="4" class="titre">';
+		$thirdpartygraph .= ' Impuestos sugueridos</td> </tr>';
+
 		}
 
+
+		$thirdpartygraph .= '<tr class="liste_titre">';
+		$thirdpartygraph .= '<td  class="titre"> Etiqueta </td>';
+		$thirdpartygraph .= '<td  class="titre"> Tarifa (%) </td>';
+		$thirdpartygraph .= '<td  class="titre right"> Importe </td>';
+		$thirdpartygraph .= '<td> </td>';
+		$thirdpartygraph .= '</tr>';
+
+		$porcentajeimpuesto=GETPOST('porimpuestoadd');
+		if($action=='addimpuesto' || $action=='changeaddimpuesto' && !GETPOST('porimpuestoadd') ){
+
+			$selected =(GETPOST('impuestoadd') ? GETPOST('impuestoadd') : 0);
+
+			$thirdpartygraph .= '<tr class="liste_titre">';
+
+			$thirdpartygraph .= '<form  id="formaddimpuestos" name="formaddimpuestos" method="POST" action="'.$_SERVER['PHP_SELF'].'?facid='.$id.'">';
+			$thirdpartygraph .= '<input type="hidden" name="action" value="changeaddimpuesto">';
+			$thirdpartygraph .= '<input type="hidden" name="token" value="'.newToken().'">';
+			$thirdpartygraph .= '<input type="hidden" name="idfactura" value="'.$id.'">';
+			$thirdpartygraph .= '<input type="hidden" name="iduser" value="'.$user->id.'">';
+			$thirdpartygraph .= '<td>';
+			$thirdpartygraph .=  '<select id="impuestoadd" name="impuestoadd">';
+			$k = 0;
+			$thirdpartygraph .=  '<option value="0">&nbsp;</option>';
+			while ($k < $num2) {
+				$obj2 = $db->fetch_object($resql2);
+				$thirdpartygraph .= '<option value="' . $obj2->id.'"';
+				if ($selected == $obj2->id) {
+					$thirdpartygraph .= ' selected="selected"';
+				}
+				$thirdpartygraph .= '>';
+				$thirdpartygraph .= $obj2->libelle;
+				$thirdpartygraph .= '</option>';
+				$k++;
+			}
+
+			$thirdpartygraph .= '</select>';	
+			
+			$thirdpartygraph .= '</td>';
+			$thirdpartygraph .= '<td>'; 
+
+			if($action=='changeaddimpuesto'){
+
+				$sql3='SELECT rowid,porcentaje FROM llx_porcentaje_impuestos WHERE fk_chargesociales='.GETPOST('impuestoadd').' ORDER BY  porcentaje';
+
+				$resql3 = $db->query($sql3);
+		        $num3 = $db->num_rows($resql3);
+
+				if($num3 > 0){
+
+				 $thirdpartygraph .=  '<select id="porimpuesto" name="porimpuestoadd">';
+			      $h = 0;
+			      $thirdpartygraph .=  '<option value="0">&nbsp;</option>';
+				  while ($h < $num3) {
+					$obj3 = $db->fetch_object($resql3);
+					$thirdpartygraph .= '<option value="' . $obj3->porcentaje.'"';
+					if ($selected == $obj3->rowid) {
+						$thirdpartygraph .= ' selected="selected"';
+					}
+					$thirdpartygraph .= '>';
+					$thirdpartygraph .= $obj3->porcentaje.' %';
+					$thirdpartygraph .= '</option>';
+					$h++;
+				}
+				$thirdpartygraph .= '</select>';
+			}
+		}
+			
+			$thirdpartygraph .='</td>';
+			$thirdpartygraph .= '<td></td>';
+			$thirdpartygraph .= '<td class="right">';  
+			$thirdpartygraph .='<input type="submit" class="button button-add small" name="actionadd" value="' . $langs->trans("Add") . '">';			
+			$thirdpartygraph .='</td>';
+			$thirdpartygraph .=  '</form>';
+			$thirdpartygraph .= '</tr>';
+
+
+		}
+         
+		if ($num) {
+
+			$j=0;
+
+			//$total_impuestos=0;
+
+			while ($j < $num) {
+				$obj = $db->fetch_object($resql);
+
+				$url=$_SERVER['PHP_SELF'].'?&facid='.$id.'&imid='.$obj->rowid;
+
+				if($action=='editimpuestos' && (GETPOST('imid')==$obj->rowid )){
+
+					$thirdpartygraph .= '<tr>';
+
+					$thirdpartygraph .= '<form  id="formaddimpuestos" name="formaddimpuestos" method="POST" action="'.$_SERVER['PHP_SELF'].'?facid='.$id.'">';
+					$thirdpartygraph .= '<input type="hidden" name="action" value="actualizarimpuestos">';
+					$thirdpartygraph .= '<input type="hidden" name="token" value="'.newToken().'">';
+					$thirdpartygraph .= '<input type="hidden" name="idfactura" value="'.$id.'">';
+					$thirdpartygraph .= '<input type="hidden" name="impid" value="'.$obj->id.'">';
+					$thirdpartygraph .= '<input type="hidden" name="row" value="'.$obj->rowid.'">';
+			        $thirdpartygraph .='<td>'.$obj->libelle.'</td>';
+
+					$sql3='SELECT rowid,porcentaje FROM llx_porcentaje_impuestos WHERE fk_chargesociales='.$obj->id.' ORDER BY  porcentaje';
+
+					$resql3 = $db->query($sql3);
+					$num3 = $db->num_rows($resql3);
+	
+				
+					$thirdpartygraph .='<td>';
+
+
+					 $thirdpartygraph .=  '<select id="porimpuesto" name="porimpuestoadd">';
+					  $h = 0;
+					  $thirdpartygraph .=  '<option value="0">&nbsp;</option>';
+					  while ($h < $num3) {
+						$obj3 = $db->fetch_object($resql3);
+						$thirdpartygraph .= '<option value="' . $obj3->porcentaje.'"';
+						if ($obj->porcentaje == $obj3->porcentaje) {
+							$thirdpartygraph .= ' selected="selected"';
+						}
+						$thirdpartygraph .= '>';
+						$thirdpartygraph .= $obj3->porcentaje.' %';
+						$thirdpartygraph .= '</option>';
+						$h++;
+					}
+					$thirdpartygraph .= '</select>';
+					$thirdpartygraph .='</td>';
+
+					$thirdpartygraph .='<td class="right">'.price($obj->importe ).'</td>';
+				   $thirdpartygraph .= '<td class="right">';
+
+				$thirdpartygraph .= '<input type="submit" class="button button-edit small" name="actionmodify" value="'.$langs->trans("Modify").'">';
+				$thirdpartygraph .= '<input type="submit" class="button button-cancel small" name="actioncancel" value="'.$langs->trans("Cancel").'">';
+				$thirdpartygraph .= '</td>';
+				$thirdpartygraph .=  '</form>';
+			    $thirdpartygraph .= '</tr>';
+
+
+				}else{
+
+				$thirdpartygraph .= '<tr>';
+			    $thirdpartygraph .='<td>'.$obj->libelle.'</td>';
+				$thirdpartygraph .='<td>'.$obj->porcentaje.' % </td>';
+				$thirdpartygraph .='<td class="right">'.price($obj->importe ).'</td>';
+				$thirdpartygraph .= '<td class="right">';
+				if($object->statut != Facture::STATUS_CLOSED && $object->statut != Facture::STATUS_ABANDONED ){
+				$thirdpartygraph .= '<a  class="reposition marginleftonly paddingleft marginrightonly paddingright editfielda" href="' .$url. '&action=editimpuestos&token='.newToken().'">' . img_edit() . '</a>';
+				$thirdpartygraph .= '<a class="reposition marginleftonly paddingleft marginrightonly paddingright" href="'.$url.'&action=deleteimpuesto&token='.newToken().'">' . img_delete() . '</a>';
+				}
+				$thirdpartygraph .= '</td>';
+			    $thirdpartygraph .= '</tr>';
+			   }
+
+				$j++;
+
+			}
+
+		
+		}
+
+		$thirdpartygraph .= '<tr>';
+		$thirdpartygraph .='<td colspan="3" class="right"> Total impuestos: '.price($object->multicurrency_total_impuestos).'</td>';
+		$thirdpartygraph .= '<td> </td>';
+		$thirdpartygraph .= '</tr>';	
+		$thirdpartygraph .= '</table>';
+		$thirdpartygraph .= '</div> </br> </br>';
+		print $thirdpartygraph;
+	}
+
+
+	
 		print '</div>';
 		print '</div>';
 
-		print '<div class="clearboth"></div><br><br>';
+		print '<div class="clearboth"></div>';
 
 		if (getDolGlobalString('MAIN_DISABLE_CONTACTS_TAB')) {
 			$blocname = 'contacts';
@@ -5553,6 +5951,9 @@ if ($action == 'create') {
 				print '<input type="hidden" name="action" value="updatealllines" />';
 				print '<input type="hidden" name="id" value="'.$object->id.'" />';
 				print '<input type="hidden" name="backtopage" value="'.$backtopage.'">';
+		
+
+				
 
 				print '<table id="tablelines_all_progress" class="noborder noshadow" width="100%">';
 
@@ -5585,6 +5986,7 @@ if ($action == 'create') {
 			}
 		}
 
+		
 		print '	<form name="addproduct" id="addproduct" action="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'" method="POST">
 		<input type="hidden" name="token" value="' . newToken().'">
 		<input type="hidden" name="action" value="' . (($action != 'editline') ? 'addline' : 'updateline').'">
@@ -5593,6 +5995,7 @@ if ($action == 'create') {
 		<input type="hidden" name="id" value="' . $object->id.'">
 		<input type="hidden" name="backtopage" value="'.$backtopage.'">
 		';
+		
 
 		if (!empty($conf->use_javascript_ajax) && $object->statut == 0) {
 			include DOL_DOCUMENT_ROOT.'/core/tpl/ajaxrow.tpl.php';
@@ -5606,12 +6009,14 @@ if ($action == 'create') {
 			$object->printObjectLines($action, $mysoc, $soc, $lineid, 1);
 		}
 
+		
+
 		// Form to add new line
 		if ($object->statut == 0 && $usercancreate && $action != 'valid') {
 			if ($action != 'editline' && $action != 'selectlines') {
 				// Add free products/services
 
-				$parameters = array();
+			$parameters = array();
 				$reshook = $hookmanager->executeHooks('formAddObjectLine', $parameters, $object, $action); // Note that $action and $object may have been modified by hook
 				if ($reshook < 0) {
 					setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
@@ -5631,6 +6036,9 @@ if ($action == 'create') {
 		print "</form>\n";
 	}
 	print dol_get_fiche_end();
+
+	
+	
 
 
 	// Actions buttons
@@ -6024,3 +6432,16 @@ if ($action == 'create') {
 // End of page
 llxFooter();
 $db->close();
+
+
+if (!empty($conf->use_javascript_ajax)) {
+	print "\n".'<script type="text/javascript">';
+	print '$(document).ready(function () {
+		  $("#impuestoadd").change(function() {
+			document.formaddimpuestos.submit();
+		
+		  });
+	  });';
+	print '</script>'."\n";
+}
+
