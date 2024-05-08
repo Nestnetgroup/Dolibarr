@@ -1,5 +1,3 @@
-
-
 <?php
 require "../../main.inc.php";
 require_once DOL_DOCUMENT_ROOT . "/core/class/html.formadmin.class.php";
@@ -110,11 +108,7 @@ if (GETPOST("saveporsentaje")) {
 
     $tablename = "llx_porcentaje_impuestos";
 
-    $sql =
-        "SELECT count(rowid) as numrows FROM llx_porcentaje_impuestos WHERE fk_chargesociales=" .
-        $idimpuesto .
-        " AND porcentaje=" .
-        $valorporcentaje;
+    $sql = "SELECT count(rowid) as numrows FROM llx_porcentaje_impuestos WHERE fk_chargesociales=" .$idimpuesto ." AND porcentaje=" .$valorporcentaje;
 
     $result = $db->query($sql);
     if ($result) {
@@ -123,8 +117,8 @@ if (GETPOST("saveporsentaje")) {
         if ($numrows > 0) {
             setEventMessages(
                 "Ya existe el porcentaje del " .
-                    $valorporcentaje .
-                    " % para el impuesto",
+                $valorporcentaje .
+                " % para el impuesto",
                 null,
                 "errors"
             );
@@ -171,26 +165,12 @@ if (GETPOST("editporcentaje")) {
     $rowid = $idimpuesto;
 }
 
-if (
-    (GETPOST("actionadd") || GETPOST("actionmodify")) &&
-    !GETPOST("saveporsentaje")
-) {
-    $listfield = explode(
-        ",",
-        str_replace(" ", "", "code,libelle,country,accountancy_code")
-    );
-    $listfieldinsert = explode(
-        ",",
-        "code,libelle,fk_pays,accountancy_code,base_importe"
-    );
-    $listfieldmodify = explode(
-        ",",
-        "code,libelle,fk_pays,accountancy_code,base_importe"
-    );
-    $listfieldvalue = explode(
-        ",",
-        "code,libelle,country,accountancy_code,base_importe"
-    );
+if ( (GETPOST("actionadd") || GETPOST("actionmodify")) && !GETPOST("saveporsentaje")) {
+
+    $listfield = explode( ",",str_replace(" ", "", "code,libelle,country,accountancy_code"));
+    $listfieldinsert = explode(",","code,libelle,fk_pays,accountancy_code,base_importe,fk_aplicacion_impuestos");
+    $listfieldmodify = explode(",","code,libelle,fk_pays,accountancy_code,base_importe,fk_aplicacion_impuestos");
+    $listfieldvalue = explode(",","code,libelle,country,accountancy_code,base_importe,fk_aplicacion_impuestos");
 
     // Check that all mandatory fields are filled
     $ok = 1;
@@ -242,8 +222,7 @@ if (
         $newid = 0;
         if (!in_array("id", $listfieldinsert)) {
             // Get free id for insert
-            $sql =
-                "SELECT MAX(id) as newid FROM " . MAIN_DB_PREFIX . $tablename;
+            $sql ="SELECT MAX(id) as newid FROM " . MAIN_DB_PREFIX . $tablename;
             $result = $db->query($sql);
             if ($result) {
                 $obj = $db->fetch_object($result);
@@ -259,7 +238,9 @@ if (
         if (!in_array("id", $listfieldinsert)) {
             $sql .= "id,";
         }
-        $sql .= "code,libelle,fk_pays,accountancy_code,base_importe";
+
+      
+        $sql .= "code,libelle,fk_pays,accountancy_code,base_importe,fk_aplicacion_impuestos";
         $sql .= ",active)";
         $sql .= " VALUES(";
 
@@ -358,11 +339,11 @@ if (
     }
 
     /*	if (!$ok && GETPOST('actionadd')) {
-			$action = 'create';
-		}
-		if (!$ok && GETPOST('actionmodify')) {
-			$action = 'edit';
-		}*/
+            $action = 'create';
+        }
+        if (!$ok && GETPOST('actionmodify')) {
+            $action = 'edit';
+        }*/
 }
 
 if ($action == "confirm_delete" && $confirm == "yes") {
@@ -528,13 +509,13 @@ llxHeader("", $title);
 if ($action == "delete") {
     print $form->formconfirm(
         $_SERVER["PHP_SELF"] .
-            "?" .
-            ($page ? "page=" . $page . "&" : "") .
-            "rowid=" .
-            urlencode($rowid) .
-            "&code=" .
-            urlencode($code) .
-            $paramwithsearch,
+        "?" .
+        ($page ? "page=" . $page . "&" : "") .
+        "rowid=" .
+        urlencode($rowid) .
+        "&code=" .
+        urlencode($code) .
+        $paramwithsearch,
         $langs->trans("DeleteLine"),
         $langs->trans("ConfirmDeleteLine"),
         "confirm_delete",
@@ -590,7 +571,7 @@ $sql = "SELECT a.id    as rowid, a.code as code, a.libelle AS libelle, a.account
 */
 
 $sql =
-    "SELECT a.id    as rowid, a.code as code, a.libelle AS libelle, a.accountancy_code as accountancy_code, c.code as country_code, c.label as country, a.fk_pays as country_id, a.active,  b.nombre as base_importe, a.base_importe as id_base_importe";
+    "SELECT a.id    as rowid, a.code as code, a.libelle AS libelle, a.accountancy_code as accountancy_code, c.code as country_code, c.label as country, a.fk_pays as country_id, a.active,  b.nombre as base_importe, a.base_importe as id_base_importe,fk_aplicacion_impuestos";
 $sql .= " FROM llx_c_chargesociales AS a";
 $sql .= " INNER JOIN llx_c_country as c ON a.fk_pays = c.rowid";
 $sql .= " LEFT JOIN llx_base_importe AS b ON a.base_importe=b.rowid";
@@ -619,7 +600,7 @@ if ($search_active == "yes") {
 
 $resql = $db->query($sql);
 
-$fieldlist = explode(",", "code,libelle,country,accountancy_code,base_importe");
+$fieldlist = explode(",", "code,libelle,country,fk_aplicacion_impuestos,accountancy_code,base_importe");
 
 print '<form action="' .
     $_SERVER["PHP_SELF"] .
@@ -639,18 +620,18 @@ if ($resql) {
 
     $newcardbutton = "";
     /*$newcardbutton .= dolGetButtonTitle($langs->trans('ViewList'), '', 'fa fa-bars imgforviewmode', $_SERVER["PHP_SELF"].'?mode=common'.preg_replace('/(&|\?)*mode=[^&]+/', '', $param), '', ((empty($mode) || $mode == 'common') ? 2 : 1), array('morecss'=>'reposition'));
-	$newcardbutton .= dolGetButtonTitle($langs->trans('ViewKanban'), '', 'fa fa-th-list imgforviewmode', $_SERVER["PHP_SELF"].'?mode=kanban'.preg_replace('/(&|\?)*mode=[^&]+/', '', $param), '', ($mode == 'kanban' ? 2 : 1), array('morecss'=>'reposition'));
-	$newcardbutton .= dolGetButtonTitleSeparator();
-	*/
+    $newcardbutton .= dolGetButtonTitle($langs->trans('ViewKanban'), '', 'fa fa-th-list imgforviewmode', $_SERVER["PHP_SELF"].'?mode=kanban'.preg_replace('/(&|\?)*mode=[^&]+/', '', $param), '', ($mode == 'kanban' ? 2 : 1), array('morecss'=>'reposition'));
+    $newcardbutton .= dolGetButtonTitleSeparator();
+    */
     $newcardbutton .= dolGetButtonTitle(
         $langs->trans("New"),
         "",
         "fa fa-plus-circle",
         DOL_URL_ROOT .
-            "/custom/impuestos/configuracion.php?action=create" .
-            $param .
-            "&backtopage=" .
-            urlencode($_SERVER["PHP_SELF"]),
+        "/custom/impuestos/configuracion.php?action=create" .
+        $param .
+        "&backtopage=" .
+        urlencode($_SERVER["PHP_SELF"]),
         "",
         $permissiontoadd
     );
@@ -681,10 +662,7 @@ if ($resql) {
         $tabname = "c_chargesociales";
         $withentity = null;
 
-        $fieldlist = explode(
-            ",",
-            "code,libelle,country,accountancy_code,base_importe"
-        );
+        $fieldlist = explode(",","code,libelle,country,fk_aplicacion_impuestos,accountancy_code,base_importe");
 
         print '<div class="div-table-responsive-no-min">';
         print '<table class="noborder centpercent">';
@@ -729,8 +707,14 @@ if ($resql) {
                 $valuetoshow = $langs->trans("AccountancyCode");
             }
 
+           
+
             if ($value == "base_importe") {
                 $valuetoshow = "Base importe";
+            }
+
+            if ($value == "fk_aplicacion_impuestos") {
+                $valuetoshow = "Aplicación impuesto";
             }
 
             if ($valuetoshow != "") {
@@ -835,8 +819,8 @@ if ($resql) {
         print "</form>";
 
         /*print '<form action="'.$_SERVER['PHP_SELF'].'?id='.$id.'" method="POST">';
-			  print '<input type="hidden" name="token" value="'.newToken().'">';
-			  print '<input type="hidden" name="from" value="'.dol_escape_htmltag(GETPOST('from', 'alpha')).'">';*/
+              print '<input type="hidden" name="token" value="'.newToken().'">';
+              print '<input type="hidden" name="from" value="'.dol_escape_htmltag(GETPOST('from', 'alpha')).'">';*/
     }
 
     $filterfound = 0;
@@ -968,9 +952,19 @@ if ($resql) {
             $valuetoshow = $langs->trans("PriceUHT");
         }
 
+        
+
+        if ($value == "fk_aplicacion_impuestos") {
+            $valuetoshow = "Aplicación impuesto";
+        }
+
         if ($value == "base_importe") {
             $valuetoshow = "Base Importe";
         }
+
+       
+
+        
 
         if ($value == "taux") {
             if ($tabname[$id] != "c_revenuestamp") {
@@ -1181,14 +1175,7 @@ if ($resql) {
                 : "";
 
             if ($tooltiphelp && preg_match("/^http(s*):/i", $tooltiphelp)) {
-                $newvaluetoshow =
-                    '<a href="' .
-                    $tooltiphelp .
-                    '" target="_blank">' .
-                    $valuetoshow .
-                    " " .
-                    img_help(1, $valuetoshow) .
-                    "</a>";
+                $newvaluetoshow ='<a href="' .$tooltiphelp .'" target="_blank">' .$valuetoshow ." " .img_help(1, $valuetoshow) ."</a>";
             } elseif ($tooltiphelp) {
                 $newvaluetoshow = $form->textwithpicto(
                     $valuetoshow,
@@ -1241,11 +1228,11 @@ if ($resql) {
 
             // We discard empty lines
             /*if ($id == 4) {
-							if ($obj->code == '') {
-								$i++;
-								continue;
-							}
-						}*/
+                            if ($obj->code == '') {
+                                $i++;
+                                continue;
+                            }
+                        }*/
 
             // Can an entry be erased, disabled or modified ? (true by default)
             $iserasable = 1;
@@ -1268,12 +1255,12 @@ if ($resql) {
                 }
             }
             /*if ($id == 25 && in_array($obj->code, array('banner', 'blogpost', 'menu', 'page', 'other'))) {
-							$iserasable = 0;
-							$canbedisabled = 0;
-							if (in_array($obj->code, array('banner'))) {
-								$canbedisabled = 1;
-							}
-						}*/
+                            $iserasable = 0;
+                            $canbedisabled = 0;
+                            if (in_array($obj->code, array('banner'))) {
+                                $canbedisabled = 1;
+                            }
+                        }*/
             if (
                 isset($obj->type) &&
                 in_array($obj->type, ["system", "systemauto"])
@@ -1375,23 +1362,13 @@ if ($resql) {
                     "fieldlist" => $fieldlist,
                     "tabname" => $tabname[$id],
                 ];
-                $reshook = $hookmanager->executeHooks(
-                    "editDictionaryFieldlist",
-                    $parameters,
-                    $obj,
-                    $tmpaction
-                ); // Note that $action and $object may have been modified by some hooks
+                $reshook = $hookmanager->executeHooks("editDictionaryFieldlist",$parameters,$obj,$tmpaction); // Note that $action and $object may have been modified by some hooks
                 $error = $hookmanager->error;
                 $errors = $hookmanager->errors;
 
                 // Show fields
                 if (empty($reshook)) {
-                    $withentity = fieldList(
-                        $fieldlist,
-                        $obj,
-                        $tabname[$id],
-                        "edit"
-                    );
+                    $withentity = fieldList($fieldlist,$obj,$tabname[$id],"edit");
                 }
 
                 print '<td colspan="3" class="center">';
@@ -1461,14 +1438,10 @@ if ($resql) {
                             if (empty($obj->country_code)) {
                                 $valuetoshow = "-";
                             } else {
-                                $key = $langs->trans(
-                                    "Country" . strtoupper($obj->country_code)
-                                );
+                                $key = $langs->trans("Country" . strtoupper($obj->country_code));
                                 $valuetoshow =
-                                    $key !=
-                                    "Country" . strtoupper($obj->country_code)
-                                        ? $obj->country_code . " - " . $key
-                                        : $obj->country;
+                                    $key !="Country" . strtoupper($obj->country_code)
+                                    ? $obj->country_code . " - " . $key: $obj->country;
                             }
                         } elseif (
                             $value == "recuperableonly" ||
@@ -1502,9 +1475,9 @@ if ($resql) {
                             $valuetoshow =
                                 $obj->code &&
                                 $key !=
-                                    "PaymentCondition" . strtoupper($obj->code)
-                                    ? $key
-                                    : $obj->$value;
+                                "PaymentCondition" . strtoupper($obj->code)
+                                ? $key
+                                : $obj->$value;
                             $valuetoshow = nl2br($valuetoshow);
                         } elseif (
                             $value == "label" &&
@@ -1516,8 +1489,8 @@ if ($resql) {
                             $valuetoshow =
                                 $obj->code &&
                                 $key != "Country" . strtoupper($obj->code)
-                                    ? $key
-                                    : $obj->$value;
+                                ? $key
+                                : $obj->$value;
                         } elseif (
                             $value == "label" &&
                             $tabname[$id] == "c_availability"
@@ -1529,9 +1502,9 @@ if ($resql) {
                             $valuetoshow =
                                 $obj->code &&
                                 $key !=
-                                    "AvailabilityType" . strtoupper($obj->code)
-                                    ? $key
-                                    : $obj->$value;
+                                "AvailabilityType" . strtoupper($obj->code)
+                                ? $key
+                                : $obj->$value;
                         } elseif (
                             $value == "libelle" &&
                             $tabname[$id] == "c_actioncomm"
@@ -1542,8 +1515,8 @@ if ($resql) {
                             $valuetoshow =
                                 $obj->code &&
                                 $key != "Action" . strtoupper($obj->code)
-                                    ? $key
-                                    : $obj->$value;
+                                ? $key
+                                : $obj->$value;
                         } elseif (
                             !empty($obj->code_iso) &&
                             $value == "label" &&
@@ -1555,8 +1528,8 @@ if ($resql) {
                             $valuetoshow =
                                 $obj->code_iso &&
                                 $key != "Currency" . strtoupper($obj->code_iso)
-                                    ? $key
-                                    : $obj->$value;
+                                ? $key
+                                : $obj->$value;
                         } elseif (
                             $value == "libelle" &&
                             $tabname[$id] == "c_typent"
@@ -1564,8 +1537,8 @@ if ($resql) {
                             $key = $langs->trans(strtoupper($obj->code));
                             $valuetoshow =
                                 $key != strtoupper($obj->code)
-                                    ? $key
-                                    : $obj->$value;
+                                ? $key
+                                : $obj->$value;
                         } elseif (
                             $value == "libelle" &&
                             $tabname[$id] == "c_prospectlevel"
@@ -1573,8 +1546,8 @@ if ($resql) {
                             $key = $langs->trans(strtoupper($obj->code));
                             $valuetoshow =
                                 $key != strtoupper($obj->code)
-                                    ? $key
-                                    : $obj->$value;
+                                ? $key
+                                : $obj->$value;
                         } elseif (
                             $value == "label" &&
                             $tabname[$id] == "c_civility"
@@ -1585,8 +1558,8 @@ if ($resql) {
                             $valuetoshow =
                                 $obj->code &&
                                 $key != "Civility" . strtoupper($obj->code)
-                                    ? $key
-                                    : $obj->$value;
+                                ? $key
+                                : $obj->$value;
                         } elseif (
                             $value == "libelle" &&
                             $tabname[$id] == "c_type_contact"
@@ -1594,23 +1567,23 @@ if ($resql) {
                             $langs->load("agenda");
                             $key = $langs->trans(
                                 "TypeContact_" .
-                                    $obj->element .
-                                    "_" .
-                                    $obj->source .
-                                    "_" .
-                                    strtoupper($obj->code)
+                                $obj->element .
+                                "_" .
+                                $obj->source .
+                                "_" .
+                                strtoupper($obj->code)
                             );
                             $valuetoshow =
                                 $obj->code &&
                                 $key !=
-                                    "TypeContact_" .
-                                        $obj->element .
-                                        "_" .
-                                        $obj->source .
-                                        "_" .
-                                        strtoupper($obj->code)
-                                    ? $key
-                                    : $obj->$value;
+                                "TypeContact_" .
+                                $obj->element .
+                                "_" .
+                                $obj->source .
+                                "_" .
+                                strtoupper($obj->code)
+                                ? $key
+                                : $obj->$value;
                         } elseif (
                             $value == "libelle" &&
                             $tabname[$id] == "c_payment_term"
@@ -1622,10 +1595,10 @@ if ($resql) {
                             $valuetoshow =
                                 $obj->code &&
                                 $key !=
-                                    "PaymentConditionShort" .
-                                        strtoupper($obj->code)
-                                    ? $key
-                                    : $obj->$value;
+                                "PaymentConditionShort" .
+                                strtoupper($obj->code)
+                                ? $key
+                                : $obj->$value;
                         } elseif (
                             $value == "libelle" &&
                             $tabname[$id] == "c_paiement"
@@ -1637,8 +1610,8 @@ if ($resql) {
                             $valuetoshow =
                                 $obj->code &&
                                 $key != "PaymentType" . strtoupper($obj->code)
-                                    ? $key
-                                    : $obj->$value;
+                                ? $key
+                                : $obj->$value;
                         } elseif (
                             $value == "type" &&
                             $tabname[$id] == "c_paiement"
@@ -1659,9 +1632,9 @@ if ($resql) {
                             $valuetoshow =
                                 $obj->code &&
                                 $key !=
-                                    "DemandReasonType" . strtoupper($obj->code)
-                                    ? $key
-                                    : $obj->$value;
+                                "DemandReasonType" . strtoupper($obj->code)
+                                ? $key
+                                : $obj->$value;
                         } elseif (
                             $value == "libelle" &&
                             $tabname[$id] == "c_input_method"
@@ -1670,8 +1643,8 @@ if ($resql) {
                             $key = $langs->trans($obj->code);
                             $valuetoshow =
                                 $obj->code && $key != $obj->code
-                                    ? $key
-                                    : $obj->$value;
+                                ? $key
+                                : $obj->$value;
                         } elseif (
                             $value == "libelle" &&
                             $tabname[$id] == "c_shipment_mode"
@@ -1683,8 +1656,8 @@ if ($resql) {
                             $valuetoshow =
                                 $obj->code &&
                                 $key != "SendingMethod" . strtoupper($obj->code)
-                                    ? $key
-                                    : $obj->$value;
+                                ? $key
+                                : $obj->$value;
                         } elseif (
                             $value == "libelle" &&
                             $tabname[$id] == "c_paper_format"
@@ -1695,8 +1668,8 @@ if ($resql) {
                             $valuetoshow =
                                 $obj->code &&
                                 $key != "PaperFormat" . strtoupper($obj->code)
-                                    ? $key
-                                    : $obj->$value;
+                                ? $key
+                                : $obj->$value;
                         } elseif (
                             $value == "label" &&
                             $tabname[$id] == "c_type_fees"
@@ -1705,8 +1678,8 @@ if ($resql) {
                             $key = $langs->trans(strtoupper($obj->code));
                             $valuetoshow =
                                 $obj->code && $key != strtoupper($obj->code)
-                                    ? $key
-                                    : $obj->$value;
+                                ? $key
+                                : $obj->$value;
                         } elseif (
                             $value == "region_id" ||
                             $value == "country_id"
@@ -1739,8 +1712,8 @@ if ($resql) {
                             $valuetoshow =
                                 $obj->code &&
                                 $key != "SizeUnit" . strtolower($obj->unit)
-                                    ? $key
-                                    : $obj->$value;
+                                ? $key
+                                : $obj->$value;
                         } elseif (
                             $value == "localtax1" ||
                             $value == "localtax2"
@@ -1818,8 +1791,8 @@ if ($resql) {
                             $key = $langs->trans($obj->label);
                             $valuetoshow =
                                 $obj->label && $key != strtoupper($obj->label)
-                                    ? $key
-                                    : $obj->{$value};
+                                ? $key
+                                : $obj->{$value};
                         } elseif (
                             $value == "label" &&
                             $tabname[$id] == "c_product_nature"
@@ -1905,8 +1878,8 @@ if ($resql) {
                                 '"' .
                                 ($titletoshow
                                     ? ' title="' .
-                                        dol_escape_htmltag($titletoshow) .
-                                        '"'
+                                    dol_escape_htmltag($titletoshow) .
+                                    '"'
                                     : "") .
                                 ">" .
                                 $valuetoshow .
@@ -1917,33 +1890,31 @@ if ($resql) {
                     // Favorite & EEC
                     // Only for country dictionary
                     /*if ($id == 4) {
-										  print '<td class="nowrap center">';
-										  // Is in EEC
-										  if ($iserasable) {
-											  print '<a class="reposition" href="'.$url.'action='.$acts[$obj->eec].'_eec&token='.newToken().'">'.$actl[$obj->eec].'</a>';
-										  } else {
-											  print '<span class="opacitymedium">'.$langs->trans("AlwaysActive").'</span>';
-										  }
-										  print '</td>';
-										  print '<td class="nowrap center">';
-										  // Favorite
-										  if ($iserasable) {
-											  print '<a class="reposition" href="'.$url.'action='.$acts[$obj->favorite].'_favorite&token='.newToken().'">'.$actl[$obj->favorite].'</a>';
-										  } else {
-											  print '<span class="opacitymedium">'.$langs->trans("AlwaysActive").'</span>';
-										  }
-										  print '</td>';
-									  }*/
+                                          print '<td class="nowrap center">';
+                                          // Is in EEC
+                                          if ($iserasable) {
+                                              print '<a class="reposition" href="'.$url.'action='.$acts[$obj->eec].'_eec&token='.newToken().'">'.$actl[$obj->eec].'</a>';
+                                          } else {
+                                              print '<span class="opacitymedium">'.$langs->trans("AlwaysActive").'</span>';
+                                          }
+                                          print '</td>';
+                                          print '<td class="nowrap center">';
+                                          // Favorite
+                                          if ($iserasable) {
+                                              print '<a class="reposition" href="'.$url.'action='.$acts[$obj->favorite].'_favorite&token='.newToken().'">'.$actl[$obj->favorite].'</a>';
+                                          } else {
+                                              print '<span class="opacitymedium">'.$langs->trans("AlwaysActive").'</span>';
+                                          }
+                                          print '</td>';
+                                      }*/
                 }
 
                 // Active
                 print '<td class="nowrap center">';
                 if ($canbedisabled) {
                     print '<a id="active' .
-                        $obj->rowid .
-                        '" onclick="scrollX(' .
-                        $obj->rowid .
-                        ',\'active\')"  class="reposition" href="' .
+                        $obj->rowid .'" onclick="scrollX(' .
+                        $obj->rowid .',\'active\')"  class="reposition" href="' .
                         $url .
                         "action=" .
                         $acts[$obj->active] .
@@ -2028,10 +1999,10 @@ if ($resql) {
                         "",
                         "fa fa-plus-circle",
                         DOL_URL_ROOT .
-                            "/impuestos/configuracion.php?action=create" .
-                            $param .
-                            "&backtopage=" .
-                            urlencode($_SERVER["PHP_SELF"]),
+                        "/impuestos/configuracion.php?action=create" .
+                        $param .
+                        "&backtopage=" .
+                        urlencode($_SERVER["PHP_SELF"]),
                         "",
                         $permissiontoadd
                     );
@@ -2047,42 +2018,25 @@ if ($resql) {
                     $thirdpartygraph .= "<td>";
                     $thirdpartygraph .= " Estado</td>";
                     $thirdpartygraph .= '<td class="right">';
-                    $thirdpartygraph .=
-                        '<a id="expandeadd' .
-                        $obj->rowid .
-                        '" onclick="scrollX(' .
-                        $obj->rowid .
-                        ',\'expandeadd\')" class="reposition marginleftonly paddingleft marginrightonly paddingright editfielda fa fa-plus-circle" href="' .
-                        $url .
-                        "action=expande&op=add&token=" .
-                        newToken() .
-                        '"></a>';
+                    $thirdpartygraph .='<a id="expandeadd' .$obj->rowid .'" onclick="scrollX('.$obj->rowid.',\'expandeadd\')" class="reposition marginleftonly paddingleft marginrightonly paddingright editfielda fa fa-plus-circle" href="' .$url ."action=expande&op=add&token=" . newToken() .'"></a>';
                     $thirdpartygraph .= "</td> </tr>";
 
                     $op = GETPOST("op", "alpha");
                     if ($op == "add") {
                         print '<input type="hidden" name="saveporsentaje" value="true">';
-                        print '<input type="hidden" name="idimpuesto" value="' .
-                            $obj->rowid .
-                            '">';
+                        print '<input type="hidden" name="idimpuesto" value="' .$obj->rowid .'">';
                         $thirdpartygraph .= '<tr class="liste_titre">';
                         $thirdpartygraph .= '<td class="wrapcolumntitle">';
-                        $thirdpartygraph .=
-                            '<input type="text" class="flat' .
-                            ($class ? " " . $class : "") .
-                            '"' .
-                            ($maxlength ? " " . $maxlength : "") .
-                            '  name="porcentage">';
+                        $thirdpartygraph .='<input type="text" class="flat' .($class ? " " . $class : "") .'"' .($maxlength ? " " . $maxlength : "") .'  name="porcentage">';
                         $thirdpartygraph .= " </td>";
                         $thirdpartygraph .= "<td></td>";
                         $thirdpartygraph .= '<td class="right">';
-                        $thirdpartygraph .=
-                            '<input type="submit" class="button button-add small" name="actionadd" value="' .
-                            $langs->trans("Add") .
-                            '">';
+                        $thirdpartygraph .='<input type="submit" class="button button-add small" name="actionadd" value="' .$langs->trans("Add") .'">';
                         $thirdpartygraph .= "</td> </tr>";
                         print "</form>";
                     }
+
+                    
 
                     $sql =
                         "SELECT rowid, porcentaje,active FROM llx_porcentaje_impuestos WHERE fk_chargesociales =" .
@@ -2260,9 +2214,7 @@ function fieldList($fieldlist, $obj = null, $tabname = "", $context = "")
             );
             print "</td>";
         } elseif (
-            $value == "accountancy_code" ||
-            $value == "accountancy_code_sell" ||
-            $value == "accountancy_code_buy"
+            $value == "accountancy_code" || $value == "accountancy_code_sell" ||$value == "accountancy_code_buy"
         ) {
             print "<td>";
             if (isModEnabled("accounting")) {
@@ -2290,40 +2242,40 @@ function fieldList($fieldlist, $obj = null, $tabname = "", $context = "")
             print "</td>";
         }
         /* elseif ($value == 'fk_tva') {
-			print '<td>';
-			print $form->load_tva('fk_tva', $obj->taux, $mysoc, new Societe($db), 0, 0, '', false, -1);
-			print '</td>';
-		} elseif ($value == 'fk_c_exp_tax_cat') {
-			print '<td>';
-			print $form->selectExpenseCategories($obj->fk_c_exp_tax_cat);
-			print '</td>';
-		} elseif ($value == 'fk_range') {
-			print '<td>';
-			print $form->selectExpenseRanges($obj->fk_range);
-			print '</td>';
-		} elseif ($value == 'block_if_negative') {
-			print '<td>';
-			print $form->selectyesno("block_if_negative", (empty($obj->block_if_negative) ? '' : $obj->block_if_negative), 1);
-			print '</td>';
-		} elseif ($value == 'type_duration') {
-			print '<td>';
-			print $form->selectTypeDuration('', (empty($obj->type_duration) ? '' : $obj->type_duration), array('i', 'h'));
-			print '</td>';
-		} */ elseif (
-            $value == "base_importe"
-        ) {
-            $selected = !empty($obj->id_base_importe)
-                ? $obj->id_base_importe
-                : 0;
+            print '<td>';
+            print $form->load_tva('fk_tva', $obj->taux, $mysoc, new Societe($db), 0, 0, '', false, -1);
+            print '</td>';
+        } elseif ($value == 'fk_c_exp_tax_cat') {
+            print '<td>';
+            print $form->selectExpenseCategories($obj->fk_c_exp_tax_cat);
+            print '</td>';
+        } elseif ($value == 'fk_range') {
+            print '<td>';
+            print $form->selectExpenseRanges($obj->fk_range);
+            print '</td>';
+        } elseif ($value == 'block_if_negative') {
+            print '<td>';
+            print $form->selectyesno("block_if_negative", (empty($obj->block_if_negative) ? '' : $obj->block_if_negative), 1);
+            print '</td>';
+        } elseif ($value == 'type_duration') {
+            print '<td>';
+            print $form->selectTypeDuration('', (empty($obj->type_duration) ? '' : $obj->type_duration), array('i', 'h'));
+            print '</td>';
+        } */ elseif ( $value == "base_importe") {
+            $selected = !empty($obj->id_base_importe)? $obj->id_base_importe: 0;
             print "<td>";
-            print $impuestos->getSelectBaseImporte(
-                "base_importe",
-                1,
-                "maxwidth200 maxwidthonsmartphone",
-                $selected
-            );
+            print $impuestos->getSelectBaseImporte("base_importe",1,"maxwidth200 maxwidthonsmartphone",$selected);
             print "</td>";
-        } else {
+        }elseif($value=='fk_aplicacion_impuestos'){
+            $selected = !empty($obj->codigo)? $obj->codogo: '';
+            print "<td>";
+            print $impuestos->getSelectAplicacionImpuesto("fk_aplicacion_impuestos",1,"maxwidth200 maxwidthonsmartphone",$selected);
+            print "</td>";
+
+
+        } 
+        
+        else {
             $fieldValue = isset($obj->{$value}) ? $obj->{$value} : "";
             $classtd = "";
             $class = "";
@@ -2353,21 +2305,21 @@ function fieldList($fieldlist, $obj = null, $tabname = "", $context = "")
 
             print '<td class="' . $classtd . '">';
             /*$transfound = 0;
-					 $transkey = '';
-					 if (in_array($fieldlist[$field], array('label', 'libelle'))) {		// For label
-						 // Special case for labels
-						 if ($tabname == 'c_civility' && !empty($obj->code)) {
-							 $transkey = "Civility".strtoupper($obj->code);
-						 }
-						 if ($tabname == 'c_payment_term' && !empty($obj->code)) {
-							 $langs->load("bills");
-							 $transkey = "PaymentConditionShort".strtoupper($obj->code);
-						 }
-						 if ($transkey && $langs->trans($transkey) != $transkey) {
-							 $transfound = 1;
-							 print $form->textwithpicto($langs->trans($transkey), $langs->trans("GoIntoTranslationMenuToChangeThis"));
-						 }
-					 }*/
+                     $transkey = '';
+                     if (in_array($fieldlist[$field], array('label', 'libelle'))) {		// For label
+                         // Special case for labels
+                         if ($tabname == 'c_civility' && !empty($obj->code)) {
+                             $transkey = "Civility".strtoupper($obj->code);
+                         }
+                         if ($tabname == 'c_payment_term' && !empty($obj->code)) {
+                             $langs->load("bills");
+                             $transkey = "PaymentConditionShort".strtoupper($obj->code);
+                         }
+                         if ($transkey && $langs->trans($transkey) != $transkey) {
+                             $transfound = 1;
+                             print $form->textwithpicto($langs->trans($transkey), $langs->trans("GoIntoTranslationMenuToChangeThis"));
+                         }
+                     }*/
             //if (!$transfound) {
             print '<input type="text" class="flat' .
                 ($class ? " " . $class : "") .
@@ -2379,8 +2331,8 @@ function fieldList($fieldlist, $obj = null, $tabname = "", $context = "")
                 $fieldlist[$field] .
                 '">';
             /*} else {
-						 print '<input type="hidden" name="'.$fieldlist[$field].'" value="'.$transkey.'">';
-					 }*/
+                         print '<input type="hidden" name="'.$fieldlist[$field].'" value="'.$transkey.'">';
+                     }*/
             print "</td>";
         }
     }
@@ -2394,23 +2346,19 @@ function fieldList($fieldlist, $obj = null, $tabname = "", $context = "")
 
 
 
-if(getParameterByName('scrollY')!=undefined){
-	var scrolly = getParameterByName('scrollY');
+    if (getParameterByName('scrollY') != undefined) {
+        var scrolly = getParameterByName('scrollY');
 
-	window.scroll(0,scrolly);
+        window.scroll(0, scrolly);
 
-}
+    }
 
 
 
-function scrollX(row,nombre){
-	var div1 = document.getElementById(nombre+row);
-   var align = div1.getAttribute("href");
-   div1.setAttribute("href", align+"&scrollY="+window.scrollY);
-}
+    function scrollX(row, nombre) {
+        var div1 = document.getElementById(nombre + row);
+        var align = div1.getAttribute("href");
+        div1.setAttribute("href", align + "&scrollY=" + window.scrollY);
+    }
 
 </script>
-
-
-
-

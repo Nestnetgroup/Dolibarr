@@ -239,16 +239,16 @@ if (empty($reshook)) {
 
 
 	if($action == 'deleteimpuesto') {
-		$imp->deleteImpuestosFacture(GETPOST('imid'),GETPOST('facid'));
+		$imp->deleteImpuestosFacture(GETPOST('imid'),GETPOST('facid'),$object->table_element);
 	}
 
 	if($action == 'actualizarimpuestos'&& GETPOST('idfactura') && GETPOST('row') && GETPOST('porimpuestoadd')) {
-		$imp->updateImpuestosFacture(GETPOST('row'),GETPOST('porimpuestoadd'),GETPOST('idfactura'),GETPOST('impid'));
+		$imp->updateImpuestosFacture(GETPOST('row'),GETPOST('porimpuestoadd'),GETPOST('idfactura'),GETPOST('impid'),$object->table_element);
 	}
 
 	if($action=='changeaddimpuesto' && GETPOST('porimpuestoadd') )
 	{
-		$imp->addImpuestosFacture(GETPOST('impuestoadd'),GETPOST('idfactura'),GETPOST('porimpuestoadd'),GETPOST('porimpuestoadd'),GETPOST('iduser'));
+		$imp->addImpuestosFacture(GETPOST('impuestoadd'),GETPOST('idfactura'),GETPOST('porimpuestoadd'),GETPOST('iduser'),$object->table_element);
 	}
 
 	// Action clone object
@@ -4149,13 +4149,13 @@ if ($action == 'create') {
 	if (!empty($mysoc->country_id)) {
 		$sql = "SELECT c.id, c.libelle as type, code, accountancy_code";
 		$sql .= " FROM llx_c_chargesociales as c";
-		$sql .= " WHERE c.active = 1";
+		$sql .= " WHERE c.active = 1 and c.fk_aplicacion_impuestos='VEN'";
 		$sql .= " AND c.fk_pays = ".((int) $mysoc->country_id);
 		$sql .= " AND (SELECT COUNT(rowid) FROM llx_porcentaje_impuestos WHERE fk_chargesociales=c.id) > 0 ORDER BY c.libelle ASC";
 	} else {
 		$sql = "SELECT c.id, c.libelle as type, code, accountancy_code";
 		$sql .= " FROM  llx_c_chargesociales  as c, llx_c_country as co";
-		$sql .= " WHERE c.active = 1 AND c.fk_pays = co.rowid";
+		$sql .= " WHERE c.active = 1 AND c.fk_pays = co.rowid and c.fk_aplicacion_impuestos='VEN'";
 		$sql .= " AND co.code = '".$db->escape($mysoc->country_code)."'";
 		$sql .= " AND (SELECT COUNT(rowid) FROM llx_porcentaje_impuestos WHERE fk_chargesociales=c.id) > 0 ORDER BY c.libelle ASC";
 	}
@@ -5705,7 +5705,7 @@ if ($action == 'create') {
 		INNER JOIN llx_c_chargesociales AS so ON fi.fk_chargesociales=so.id 
 		INNER JOIN llx_facture AS fa ON fi.fk_facture=fa.rowid
         LEFT JOIN llx_base_importe AS bi ON so.base_importe=bi.rowid
-		WHERE fa.rowid=".$id;
+		WHERE fa.rowid=".$id." AND so.fk_aplicacion_impuestos='VEN'";
 
 
 
@@ -5716,7 +5716,7 @@ $resql = $db->query($sql);
 		$sql2="SELECT DISTINCT id,libelle 
         FROM llx_c_chargesociales AS ch
 		INNER JOIN llx_porcentaje_impuestos AS por ON ch.id=por.fk_chargesociales
-        WHERE ch.active = 1 AND ch.fk_pays=".((int) $mysoc->country_id)." AND ch.id NOT IN (select fk_chargesociales from llx_facture_impuesto 	where fk_facture=".$id.")  and ch.base_importe is not null and ch.base_importe <> 0";
+        WHERE ch.active = 1 AND ch.fk_pays=".((int) $mysoc->country_id)." AND ch.id NOT IN (select fk_chargesociales from llx_facture_impuesto 	where fk_facture=".$id.")  and ch.base_importe is not null and ch.base_importe <> 0 and ch.fk_aplicacion_impuestos='VEN'";
         $resql2 = $db->query($sql2);
 		$num2 = $db->num_rows($resql2);
 
@@ -5951,9 +5951,6 @@ $resql = $db->query($sql);
 				print '<input type="hidden" name="action" value="updatealllines" />';
 				print '<input type="hidden" name="id" value="'.$object->id.'" />';
 				print '<input type="hidden" name="backtopage" value="'.$backtopage.'">';
-		
-
-				
 
 				print '<table id="tablelines_all_progress" class="noborder noshadow" width="100%">';
 

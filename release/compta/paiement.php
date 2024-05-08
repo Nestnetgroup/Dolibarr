@@ -839,19 +839,17 @@ if ($action == 'create' || $action == 'confirm_paiement' || $action == 'add_paie
 					print '</td>';
 
 
-					$sql2 = 'SELECT fi.rowid,so.libelle,fi.porcentaje,fi.importe
+					$sql2 = "SELECT fi.rowid,so.libelle,fi.porcentaje,fi.importe
 					FROM llx_facture_impuesto AS fi 
 					INNER JOIN llx_c_chargesociales AS so ON fi.fk_chargesociales=so.id 
 					INNER JOIN llx_facture AS fa ON fi.fk_facture=fa.rowid
-					WHERE fa.rowid='.$objp->facid;
+					WHERE fa.rowid=".$objp->facid." AND so.fk_aplicacion_impuestos='VEN'";
 
 					$resql2 = $db->query($sql2);
 					if ($resql2) {
 						$num2 = $db->num_rows($resql2);
 						if($num2 > 0){
 							print '<td class="right"> <a  class="reposition marginleftonly paddingleft marginrightonly paddingright editfielda fa fa-caret-down" href="' . $_SERVER["PHP_SELF"]  . '?facid='.$facid.'&action=create&op=expande&row='.$objp->facid.'"></a></td>';
-
-
 						}else{
 							print '<td class="right"> </td>';
 						}
