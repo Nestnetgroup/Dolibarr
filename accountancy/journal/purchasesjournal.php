@@ -116,7 +116,7 @@ $sql = "SELECT f.rowid, f.ref as ref, f.type, f.datef as df, f.libelle as label,
 $sql .= " fd.rowid as fdid, fd.description, fd.product_type, fd.total_ht, fd.tva as total_tva, fd.total_localtax1, fd.total_localtax2, fd.tva_tx, fd.total_ttc, fd.vat_src_code, fd.info_bits,";
 $sql .= " p.default_vat_code AS product_buy_default_vat_code, p.tva_tx as product_buy_vat, p.localtax1_tx as product_buy_localvat1, p.localtax2_tx as product_buy_localvat2,";
 $sql .= " co.code as country_code, co.label as country_label,";
-$sql .= " s.rowid as socid, s.nom as name, s.fournisseur, s.code_client, s.code_fournisseur, s.fk_pays,";
+$sql .= " s.rowid as socid, s.nom as name, s.fournisseur, s.code_client, s.code_fournisseur, s.fk_pays,f.multicurrency_total_impuestos,";
 if (getDolGlobalString('MAIN_COMPANY_PERENTITY_SHARED')) {
 	$sql .= " spe.accountancy_code_customer as code_compta,";
 	$sql .= " spe.accountancy_code_supplier as code_compta_fournisseur,";
@@ -191,6 +191,7 @@ if ($result) {
 	$tabrclocaltax1 = array();
 	$tabrclocaltax2 = array();
 	$vatdata_cache = array();
+	$tabImpuestos = array();
 
 	$num = $db->num_rows($result);
 
@@ -245,7 +246,32 @@ if ($result) {
 		$tabfac[$obj->rowid]["type"] = $obj->type;
 		$tabfac[$obj->rowid]["description"] = $obj->description;
 		$tabfac[$obj->rowid]["close_code"] = $obj->close_code; // close_code = 'replaced' for replacement invoices (not used in most european countries)
+		$tabfac[$obj->rowid]["total_impuestos"] = $obj->multicurrency_total_impuestos; 
 		//$tabfac[$obj->rowid]["fk_facturefourndet"] = $obj->fdid;
+
+
+		 //Impuestos sugeridos
+		 $sqli="SELECT fi.rowid,so.libelle,fi.porcentaje,fi.importe,so.accountancy_code"; 
+		 $sqli .=" FROM llx_facture_impuesto AS fi"; 
+		 $sqli .=" INNER JOIN llx_c_chargesociales AS so ON fi.fk_chargesociales=so.id"; 
+		 $sqli .=" INNER JOIN llx_facture_fourn AS fa ON fi.fk_facture=fa.rowid"; 
+		 $sqli .=" WHERE fa.rowid=".$obj->rowid." AND so.fk_aplicacion_impuestos='COM'";
+ 
+			 $resulti = $db->query($sqli);
+			 if ($resulti) {
+				 $numi = $db->num_rows($resulti);
+				 if($numi > 0){
+					 $j = 0;
+						 while ($j < $numi) {
+							 $obj2 = $db->fetch_object($resql);
+							 
+							 $tabImpuestos[$obj->rowid][$j]["accountancy_code"] = $obj2->accountancy_code;
+							 $tabImpuestos[$obj->rowid][$j]["libelle"] = $obj2->libelle;
+							 $tabImpuestos[$obj->rowid][$j]["importe"] = $obj2->importe;					
+							 $j++;
+						 }
+				 }
+			 }
 
 		// Avoid warnings
 		if (!isset($tabttc[$obj->rowid][$compta_soc])) {
@@ -328,6 +354,14 @@ if ($result) {
 			);
 
 		$i++;
+	}
+
+
+	foreach ($tabttc as $k => $mt) {
+		foreach ($mt as $cu => $val) {
+
+			$tabttc[$k][$cu]=$val-$tabfac[$k]["total_impuestos"];
+		}
 	}
 } else {
 	dol_print_error($db);
@@ -707,6 +741,67 @@ if ($action == 'writebookkeeping' && !$error) {
 			}
 		}
 
+
+
+
+
+
+      // Impuestos
+		if (!$errorforline) {
+			foreach ($tabImpuestos[$key] as $k => $mt) {
+
+				//$sqli="SELECT fi.rowid,so.libelle,fi.porcentaje,fi.importe,so.accountancy_code"; 
+
+				$bookkeeping = new BookKeeping($db);
+				$bookkeeping->doc_date = $val["date"];
+				$bookkeeping->date_lim_reglement = $val["datereg"];
+				$bookkeeping->doc_ref = $val["refsologest"];
+				$bookkeeping->date_creation = $now;
+				$bookkeeping->doc_type = 'supplier_invoice';
+				$bookkeeping->fk_doc = $key;
+				$bookkeeping->fk_docdet = 0; // Useless, can be several lines that are source of this record to add
+				$bookkeeping->thirdparty_code = $companystatic->code_fournisseur;
+				$bookkeeping->subledger_account ='';  //$mt["accountancy_code"];
+				$bookkeeping->subledger_label = $tabcompany[$key]['name'];
+
+				$bookkeeping->numero_compte = $mt["accountancy_code"];
+
+
+				$bookkeeping->label_compte = $mt['libelle'];
+
+
+				$bookkeeping->label_operation = dol_trunc($companystatic->name, 16).' - '.$invoicestatic->ref_supplier.' - '.$mt['libelle'];
+				$bookkeeping->montant = $mt["importe"];
+				$bookkeeping->sens = ($mt["importe"] >= 0) ? 'C' : 'D';
+				$bookkeeping->debit = ($mt["importe"] <= 0) ? -$mt["importe"] : 0;
+				$bookkeeping->credit = ($mt["importe"] > 0) ? $mt["importe"] : 0;
+
+				$bookkeeping->code_journal = $journal;
+				$bookkeeping->journal_label = $langs->transnoentities($journal_label);
+				$bookkeeping->fk_user_author = $user->id;
+				$bookkeeping->entity = $conf->entity;
+
+				$totaldebit += $bookkeeping->debit;
+				$totalcredit += $bookkeeping->credit;
+
+				$result = $bookkeeping->create($user);
+				if ($result < 0) {
+					if ($bookkeeping->error == 'BookkeepingRecordAlreadyExists') {	// Already exists
+						$error++;
+						$errorforline++;
+						$errorforinvoice[$key] = 'alreadyjournalized';
+						//setEventMessages('Transaction for ('.$bookkeeping->doc_type.', '.$bookkeeping->fk_doc.', '.$bookkeeping->fk_docdet.') were already recorded', null, 'warnings');
+					} else {
+						$error++;
+						$errorforline++;
+						$errorforinvoice[$key] = 'other';
+						setEventMessages($bookkeeping->error, $bookkeeping->errors, 'errors');
+					}
+				}
+			}
+		}
+
+
 		// Protection against a bug on lines before
 		if (!$errorforline && (price2num($totaldebit, 'MT') != price2num($totalcredit, 'MT'))) {
 			$error++;
@@ -915,6 +1010,7 @@ if ($action == 'exportcsv' && !$error) {		// ISO and not UTF8 !
 				}
 			}
 		}
+	
 	}
 }
 
@@ -1227,6 +1323,7 @@ if (empty($action) || $action == 'view') {
 			}
 		}
 
+	
 		// VAT counterpart for NPR
 		if (is_array($tabother[$key])) {
 			foreach ($tabother[$key] as $k => $mt) {
@@ -1254,8 +1351,36 @@ if (empty($action) || $action == 'view') {
 
 					$i++;
 				}
-			}
+			}		
 		}
+
+
+			//Impuestos 
+
+			foreach ($tabImpuestos[$key] as $k => $mt)
+			{
+				print '<tr class="oddeven">';
+				print "<!-- Impuestos -->";
+				print "<td>".$date."</td>";
+				print "<td>".$invoicestatic->getNomUrl(1)."</td>";
+
+				print "<td>"; 
+				print $mt["accountancy_code"];
+				print "</td>";
+
+				print "<td>";
+				
+				print '</td>';
+				$companystatic->id = $tabcompany[$key]['id'];
+				$companystatic->name = $tabcompany[$key]['name'];
+				print "<td>".$companystatic->getNomUrl(0, 'customer', 16).' - '.$invoicestatic->ref_supplier.' - '.$mt["libelle"]."</td>";
+				print '<td class="right nowraponall amount">'.($mt["importe"] < 0 ? price(-$mt["importe"]) : '')."</td>";
+			    print '<td class="right nowraponall amount">'.($mt["importe"] >= 0 ? price($mt["importe"]) : '')."</td>";	
+				print "</tr>";
+
+				
+	
+		   }
 	}
 
 	if (!$i) {

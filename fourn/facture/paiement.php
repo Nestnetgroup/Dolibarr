@@ -111,6 +111,15 @@ $arrayfields = array();
 
 
 
+
+foreach($_POST as $nombre_campo => $valor){
+	$asignacion = "\$" . $nombre_campo . "='" . $valor . "';";
+
+	echo $asignacion;
+
+ }
+
+
 /*
  * Actions
  */
@@ -174,7 +183,7 @@ if (empty($reshook)) {
 				if ($result <= 0) {
 					dol_print_error($db);
 				}
-				$amountsresttopay[$cursorfacid] = price2num($tmpinvoice->total_ttc - $tmpinvoice->getSommePaiement());
+				$amountsresttopay[$cursorfacid] = price2num($tmpinvoice->total_ttc - $tmpinvoice->getSommePaiement()-$tmpinvoice->multicurrency_total_impuestos);
 				if ($amounts[$cursorfacid]) {
 					// Check amount
 					if ($amounts[$cursorfacid] && (abs($amounts[$cursorfacid]) > abs($amountsresttopay[$cursorfacid]))) {
@@ -541,7 +550,7 @@ if ($action == 'create' || $action == 'confirm_paiement' || $action == 'add_paie
 				$sql = 'SELECT f.rowid as facid, f.ref, f.ref_supplier, f.type, f.total_ht, f.total_ttc,';
 				$sql .= ' f.multicurrency_code, f.multicurrency_tx, f.multicurrency_total_ht, f.multicurrency_total_tva, f.multicurrency_total_ttc,';
 				$sql .= ' f.datef as df, f.date_lim_reglement as dlr,';
-				$sql .= ' SUM(pf.amount) as am, SUM(pf.multicurrency_amount) as multicurrency_am';
+				$sql .= ' SUM(pf.amount) as am, SUM(pf.multicurrency_amount) as multicurrency_am, multicurrency_total_impuestos';
 				$sql .= ' FROM '.MAIN_DB_PREFIX.'facture_fourn as f';
 				$sql .= ' LEFT JOIN '.MAIN_DB_PREFIX.'paiementfourn_facturefourn as pf ON pf.fk_facturefourn = f.rowid';
 				$sql .= " WHERE f.entity = ".((int) $conf->entity);
@@ -593,10 +602,14 @@ if ($action == 'create' || $action == 'confirm_paiement' || $action == 'add_paie
 							print '<td class="right">'.$langs->trans('MulticurrencyRemainderToPay').'</td>';
 							print '<td class="center">'.$langs->trans('MulticurrencyPaymentAmount').'</td>';
 						}
+
 						print '<td class="right">'.$langs->trans('AmountTTC').'</td>';
+						print '<td class="right">Impuestos</td>';
+						print '<td class="right">Importe total pago</td>';
 						print '<td class="right">'.$langs->trans('AlreadyPaid').'</td>';
 						print '<td class="right">'.$langs->trans('RemainderToPay').'</td>';
 						print '<td class="center">'.$langs->trans('PaymentAmount').'</td>';
+						print '<td class="right"></td>';
 						print '</tr>';
 
 						$total = 0;
@@ -620,7 +633,7 @@ if ($action == 'create' || $action == 'confirm_paiement' || $action == 'add_paie
 							$creditnotes = $invoice->getSumCreditNotesUsed();
 							$deposits = $invoice->getSumDepositsUsed();
 							$alreadypayed = price2num($paiement + $creditnotes + $deposits, 'MT');
-							$remaintopay = price2num($invoice->total_ttc - $paiement - $creditnotes - $deposits, 'MT');
+							$remaintopay = price2num($invoice->total_ttc - $paiement - $creditnotes - $deposits-$invoice->multicurrency_total_impuestos, 'MT');
 
 							// Multicurrency Price
 							if (isModEnabled("multicurrency")) {
@@ -711,7 +724,11 @@ if ($action == 'create' || $action == 'confirm_paiement' || $action == 'add_paie
 								print "</td>";
 							}
 
+							
+
 							print '<td class="right">'.price($sign * $objp->total_ttc).'</td>';
+							print '<td class="right">'.price($objp->multicurrency_total_impuestos).'</td>';
+							print '<td class="right">'.price($objp->total_ttc-$objp->multicurrency_total_impuestos).'</td>';
 
 							print '<td class="right">'.price($sign * $objp->am);
 							if ($creditnotes) {
@@ -766,7 +783,68 @@ if ($action == 'create' || $action == 'confirm_paiement' || $action == 'add_paie
 							}
 							print "</td>";
 
+							$sql2 = "SELECT fi.rowid,so.libelle,fi.porcentaje,fi.importe
+							FROM llx_facture_impuesto AS fi 
+							INNER JOIN llx_c_chargesociales AS so ON fi.fk_chargesociales=so.id 
+							INNER JOIN llx_facture AS fa ON fi.fk_facture=fa.rowid
+							WHERE fa.rowid=".$objp->facid." AND so.fk_aplicacion_impuestos='COM'";
+		
+							$resql2 = $db->query($sql2);
+							if ($resql2) {
+								$num2 = $db->num_rows($resql2);
+								if($num2 > 0){
+									print '<td class="right"> <a  class="reposition marginleftonly paddingleft marginrightonly paddingright editfielda fa fa-caret-down" href="' . $_SERVER["PHP_SELF"]  . '?facid='.$facid.'&action=create&op=expande&row='.$objp->facid.'"></a></td>';
+								}else{
+									print '<td class="right"> </td>';
+								}
+		
+							}else {
+								dol_print_error($db);
+							}
+
+
+
 							print "</tr>\n";
+
+
+
+							$op = GETPOST('op', 'alpha');
+							$row = GETPOST('row', 'alpha');
+							if ($op == 'expande' && $row==$objp->facid) {
+								print "<tr>\n";
+								print '<td colspan="4" >';
+							
+								$thirdpartygraph = '<div class="div-table-responsive-no-min">';
+								$thirdpartygraph .= '<table class="noborder nohover centpercent">' . "\n";
+								$thirdpartygraph .= '<td  class="titre"> Etiqueta </td>';
+								$thirdpartygraph .= '<td  class="titre"> Tarifa (%) </td>';
+								$thirdpartygraph .= '<td  class="titre right"> Importe </td>';
+								$thirdpartygraph .= '</tr>';
+		
+								$K=0;
+								while ($K < $num2) {
+		
+									$obj2 = $db->fetch_object($resql2);
+									$thirdpartygraph .= '<tr>';
+									$thirdpartygraph .='<td>'.$obj2->libelle.'</td>';
+									$thirdpartygraph .='<td>'.$obj2->porcentaje.' % </td>';
+									$thirdpartygraph .='<td class="right">'.price($obj2->importe).'</td>';
+									$thirdpartygraph .= '</tr>';
+		
+									$obj2->importe;
+		
+									$K++;
+								}
+		
+								$thirdpartygraph .= '</table>';
+								$thirdpartygraph .= '</div>';
+								print $thirdpartygraph;
+								print '</td>';
+								print "</tr>\n";
+		
+							}
+
+
 							$total += $objp->total_ht;
 							$total_ttc += $objp->total_ttc;
 							$totalrecu += $objp->am;
@@ -785,8 +863,13 @@ if ($action == 'create' || $action == 'confirm_paiement' || $action == 'add_paie
 								print '<td>&nbsp;</td>';
 								print '<td class="right" id="multicurrency_result" style="font-weight: bold;"></td>';
 							}
+
+						
 							print '<td class="right"><b>'.price($sign * $total_ttc).'</b></td>';
+							print '<td class="right"></td>';
+							print '<td class="right"></td>';
 							print '<td class="right"><b>'.price($sign * $totalrecu);
+							
 							if ($totalrecucreditnote) {
 								print '+'.price($totalrecucreditnote);
 							}

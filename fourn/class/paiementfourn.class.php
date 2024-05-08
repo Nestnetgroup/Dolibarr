@@ -283,7 +283,7 @@ class PaiementFourn extends Paiement
 								$deposits=$invoice->getSumDepositsUsed();
 								//$deposits = 0;
 								$alreadypayed = price2num($paiement + $creditnotes + $deposits, 'MT');
-								$remaintopay = price2num($invoice->total_ttc - $paiement - $creditnotes - $deposits, 'MT');
+								$remaintopay = price2num($invoice->total_ttc - $paiement - $creditnotes - $deposits-$invoice->multicurrency_total_impuestos, 'MT');
 								if ($remaintopay == 0) {
 									// If invoice is a down payment, we also convert down payment to discount
 									if ($invoice->type == FactureFournisseur::TYPE_DEPOSIT) {

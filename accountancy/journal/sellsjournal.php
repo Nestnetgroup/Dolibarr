@@ -279,7 +279,7 @@ if ($result) {
 		$sqli .=" FROM llx_facture_impuesto AS fi"; 
 		$sqli .=" INNER JOIN llx_c_chargesociales AS so ON fi.fk_chargesociales=so.id"; 
 		$sqli .=" INNER JOIN llx_facture AS fa ON fi.fk_facture=fa.rowid"; 
-		$sqli .=" WHERE fa.rowid=".$obj->rowid;
+		$sqli .=" WHERE fa.rowid=".$obj->rowid." AND so.fk_aplicacion_impuestos='VEN'";
 
 			$resulti = $db->query($sqli);
 			if ($resulti) {
@@ -387,11 +387,6 @@ if ($result) {
 			$tabttc[$k][$cu]=$val-$tabfac[$k]["total_impuestos"];
 		}
 	}
-
-
-
-
-	
 
 	// After the loop on each line
 } else {

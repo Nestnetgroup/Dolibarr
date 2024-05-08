@@ -899,7 +899,7 @@ class FactureFournisseur extends CommonInvoice
 		$sql .= ' t.fk_incoterms, t.location_incoterms,';
 		$sql .= " i.libelle as label_incoterms,";
 		$sql .= ' t.fk_transport_mode,';
-		$sql .= ' t.fk_multicurrency, t.multicurrency_code, t.multicurrency_tx, t.multicurrency_total_ht, t.multicurrency_total_tva, t.multicurrency_total_ttc';
+		$sql .= ' t.fk_multicurrency, t.multicurrency_code, t.multicurrency_tx, t.multicurrency_total_ht, t.multicurrency_total_tva, t.multicurrency_total_ttc,t.multicurrency_total_impuestos';
 		$sql .= ' FROM '.MAIN_DB_PREFIX.'facture_fourn as t';
 		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."societe as s ON (t.fk_soc = s.rowid)";
 		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."c_payment_term as cr ON t.fk_cond_reglement = cr.rowid";
@@ -916,6 +916,8 @@ class FactureFournisseur extends CommonInvoice
 				$sql .= " AND t.ref_ext = '".$this->db->escape($ref_ext)."'";
 			}
 		}
+
+		
 
 		dol_syslog(get_class($this)."::fetch", LOG_DEBUG);
 		$resql = $this->db->query($sql);
@@ -986,6 +988,7 @@ class FactureFournisseur extends CommonInvoice
 				$this->multicurrency_total_ht = $obj->multicurrency_total_ht;
 				$this->multicurrency_total_tva = $obj->multicurrency_total_tva;
 				$this->multicurrency_total_ttc = $obj->multicurrency_total_ttc;
+				$this->multicurrency_total_impuestos=$obj->multicurrency_total_impuestos;
 
 				$this->extraparams = isset($obj->extraparams) ? (array) json_decode($obj->extraparams, true) : array();
 
